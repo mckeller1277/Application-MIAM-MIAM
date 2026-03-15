@@ -4,23 +4,22 @@
     "slug": "miam-miam",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./src/assets/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0A1628"
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#0A1628"
       },
-      "package": "com.miammiam.app",
-      "permissions": ["CAMERA"]
+      "package": "com.miammiam.app"
     },
-    "plugins": [
-      ["expo-barcode-scanner", { "cameraPermission": "Autoriser Miam Miam à utiliser la caméra pour scanner les codes-barres." }]
-    ]
+    "extra": {
+      "eas": {
+        "projectId": "62d37fdc-e313-494f-aa56-bcbf1146d4ba"
+      }
+    },
+    "owner": "Mckeller1277"
   }
 }
