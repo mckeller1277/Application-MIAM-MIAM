@@ -10,7 +10,9 @@ const C = {
   skyMid: '#5294C4', text: '#E8F0FB', muted: '#7A99BB', white: '#FFFFFF',
   border: 'rgba(255,255,255,0.08)',
 };
-const BASE_URL = 'https://www.themealdb.com/api/json/v1/1';
+
+const API_KEY = 'be597782e6c24111a7da7cc0618e5862';
+const BASE_URL = 'https://api.spoonacular.com/recipes';
 
 export default function RecipeDetailScreen({ route, navigation }) {
   const { recipeId, title } = route.params;
@@ -21,21 +23,34 @@ export default function RecipeDetailScreen({ route, navigation }) {
 
   const fetchRecipe = async () => {
     try {
-      const res = await axios.get(`${BASE_URL}/lookup.php?i=${recipeId}`);
-      const meal = res.data.meals?.[0];
-      if (!meal) return;
-      const ingredients = [];
-      for (let i = 1; i <= 20; i++) {
-        const name = meal[`strIngredient${i}`];
-        const measure = meal[`strMeasure${i}`];
-        if (name && name.trim()) ingredients.push({ name: name.trim(), measure: measure?.trim() || '' });
-      }
-      const steps = meal.strInstructions
-        ? meal.strInstructions.split(/\r\n|\n|\r/).filter(s => s.trim().length > 10).slice(0, 10)
-        : ['Voir instructions en ligne.'];
-      setRecipe({ id: meal.idMeal, title: meal.strMeal, thumbnail: meal.strMealThumb, category: meal.strCategory, area: meal.strArea, ingredients, steps });
+      const [infoRes, stepsRes] = await Promise.all([
+        axios.get(`${BASE_URL}/${recipeId}/information`, {
+          params: { apiKey: API_KEY, language: 'fr' }
+        }),
+        axios.get(`${BASE_URL}/${recipeId}/analyzedInstructions`, {
+          params: { apiKey: API_KEY, language: 'fr' }
+        }),
+      ]);
+
+      const info = infoRes.data;
+      const ingredients = (info.extendedIngredients || []).map(i => ({
+        name: i.name,
+        measure: `${i.amount} ${i.unit}`,
+      }));
+
+      const steps = stepsRes.data?.[0]?.steps?.map(s => s.step) || ['Voir la recette complète en ligne.'];
+
+      setRecipe({
+        id: String(info.id),
+        title: info.title,
+        thumbnail: info.image,
+        readyInMinutes: info.readyInMinutes,
+        servings: info.servings,
+        ingredients,
+        steps,
+      });
     } catch (e) {
-      setRecipe({ id: recipeId, title, thumbnail: null, category: '', area: '', ingredients: [], steps: ['Impossible de charger. Vérifiez votre connexion.'] });
+      setRecipe({ id: recipeId, title, thumbnail: null, readyInMinutes: null, servings: null, ingredients: [], steps: ['Impossible de charger la recette.'] });
     }
     setLoading(false);
   };
@@ -43,7 +58,10 @@ export default function RecipeDetailScreen({ route, navigation }) {
   const addToCart = async () => {
     if (!recipe) return;
     const current = await loadCart();
-    const newItems = recipe.ingredients.map(i => ({ label: i.measure ? `${i.name} — ${i.measure}` : i.name, done: false }));
+    const newItems = recipe.ingredients.map(i => ({
+      label: `${i.name} — ${i.measure}`,
+      done: false,
+    }));
     await saveCart([...current, ...newItems.filter(n => !current.find(c => c.label === n.label))]);
     navigation.navigate('Courses');
   };
@@ -51,6 +69,7 @@ export default function RecipeDetailScreen({ route, navigation }) {
   if (loading) return (
     <SafeAreaView style={[s.container, { alignItems: 'center', justifyContent: 'center' }]} edges={['top']}>
       <ActivityIndicator size="large" color={C.red} />
+      <Text style={{ color: C.muted, marginTop: 12 }}>Chargement...</Text>
     </SafeAreaView>
   );
 
@@ -66,8 +85,8 @@ export default function RecipeDetailScreen({ route, navigation }) {
         <View style={s.heroBody}>
           <Text style={s.heroTitle}>{recipe?.title}</Text>
           <View style={s.heroTags}>
-            {recipe?.category ? <View style={s.dtag}><Text style={s.dtagText}>{recipe.category}</Text></View> : null}
-            {recipe?.area ? <View style={s.dtag}><Text style={s.dtagText}>{recipe.area}</Text></View> : null}
+            {recipe?.readyInMinutes ? <View style={s.dtag}><Text style={s.dtagText}>⏱ {recipe.readyInMinutes} min</Text></View> : null}
+            {recipe?.servings ? <View style={s.dtag}><Text style={s.dtagText}>👥 {recipe.servings} pers.</Text></View> : null}
           </View>
         </View>
         <Text style={s.sec}>Ingrédients</Text>
