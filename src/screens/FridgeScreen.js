@@ -15,15 +15,25 @@ const DEFAULT_INGREDIENTS = ['Oeufs', 'Tomates', 'Fromage', 'Carottes', 'Beurre'
 
 export default function FridgeScreen({ navigation }) {
   const [ingredients, setIngredients] = useState([]);
+  const [selected, setSelected] = useState([]);
   const [input, setInput] = useState('');
 
   useEffect(() => {
     loadFridge().then(data => {
       const list = data.length ? data : DEFAULT_INGREDIENTS;
       setIngredients(list);
+      setSelected(list); // tous sélectionnés par défaut
       if (!data.length) saveFridge(list);
     });
   }, []);
+
+  const toggleSelect = (item) => {
+    setSelected(prev =>
+      prev.includes(item)
+        ? prev.filter(x => x !== item)
+        : [...prev, item]
+    );
+  };
 
   const addIngredient = () => {
     const val = input.trim();
@@ -32,6 +42,7 @@ export default function FridgeScreen({ navigation }) {
     const cap = val.charAt(0).toUpperCase() + val.slice(1);
     const newList = [...ingredients, cap];
     setIngredients(newList);
+    setSelected(prev => [...prev, cap]);
     saveFridge(newList);
     setInput('');
   };
@@ -42,39 +53,46 @@ export default function FridgeScreen({ navigation }) {
       { text: 'Supprimer', style: 'destructive', onPress: () => {
         const newList = ingredients.filter(x => x !== item);
         setIngredients(newList);
+        setSelected(prev => prev.filter(x => x !== item));
         saveFridge(newList);
       }},
     ]);
   };
 
   const goToRecipes = () => {
-    if (!ingredients.length) {
-      Alert.alert('Frigo vide', 'Ajoutez des ingrédients !');
+    if (!selected.length) {
+      Alert.alert('Aucun ingrédient sélectionné', 'Sélectionnez au moins un ingrédient !');
       return;
     }
-    navigation.navigate('Recettes', {
-      selectedIngredients: ingredients.map(x => x.toLowerCase()),
-    });
+    navigation.navigate('Recettes', { selectedIngredients: selected });
   };
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.logo}>🍴 Miam Miam</Text>
-        <Text style={s.sub}>Cuisinez avec ce que vous avez</Text>
+        <Text style={s.sub}>Touchez un ingrédient pour le désélectionner</Text>
       </View>
-      <Text style={s.sec}>Mon frigo</Text>
-      <Text style={s.hint}>Appui long pour supprimer un ingrédient</Text>
+      <Text style={s.sec}>Mon frigo ({selected.length}/{ingredients.length} sélectionnés)</Text>
       <FlatList
         data={ingredients}
         keyExtractor={item => item}
         numColumns={3}
         contentContainerStyle={s.chipGrid}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={s.chip} onLongPress={() => removeIngredient(item)}>
-            <Text style={s.chipText}>{item}</Text>
-          </TouchableOpacity>
-        )}
+        renderItem={({ item }) => {
+          const isSel = selected.includes(item);
+          return (
+            <TouchableOpacity
+              style={[s.chip, !isSel && s.chipUnsel]}
+              onPress={() => toggleSelect(item)}
+              onLongPress={() => removeIngredient(item)}
+            >
+              <Text style={[s.chipText, !isSel && s.chipTextUnsel]}>
+                {isSel ? '✓ ' : ''}{item}
+              </Text>
+            </TouchableOpacity>
+          );
+        }}
       />
       <View style={s.addRow}>
         <TextInput
@@ -94,7 +112,7 @@ export default function FridgeScreen({ navigation }) {
         </View>
       </TouchableOpacity>
       <TouchableOpacity style={s.cta} onPress={goToRecipes}>
-        <Text style={s.ctaText}>🔍 Trouver des recettes</Text>
+        <Text style={s.ctaText}>🔍 Trouver des recettes ({selected.length} ingrédients)</Text>
       </TouchableOpacity>
     </SafeAreaView>
   );
@@ -105,11 +123,12 @@ const s = StyleSheet.create({
   header: { backgroundColor: C.bg2, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
   logo: { color: C.white, fontSize: 20, fontWeight: '800' },
   sub: { color: C.muted, fontSize: 11, marginTop: 2 },
-  sec: { color: C.skyMid, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', padding: 14, paddingBottom: 2 },
-  hint: { color: C.muted, fontSize: 10, paddingHorizontal: 14, paddingBottom: 6 },
+  sec: { color: C.skyMid, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', padding: 14, paddingBottom: 6 },
   chipGrid: { paddingHorizontal: 12, paddingBottom: 8 },
   chip: { margin: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 22, backgroundColor: C.red, borderWidth: 1.5, borderColor: C.redDark },
+  chipUnsel: { backgroundColor: C.bg3, borderColor: C.skyLight },
   chipText: { color: C.white, fontSize: 12, fontWeight: '700' },
+  chipTextUnsel: { color: C.muted },
   addRow: { flexDirection: 'row', padding: 14, gap: 8, alignItems: 'center' },
   input: { flex: 1, backgroundColor: C.bg3, borderRadius: 22, borderWidth: 1.5, borderColor: C.skyLight, padding: 8, paddingHorizontal: 14, color: C.text, fontSize: 13 },
   btnPlus: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
