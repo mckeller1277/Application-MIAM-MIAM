@@ -1,12 +1,10 @@
 {
   "name": "miam-miam",
   "version": "1.0.0",
-  "description": "Application Android de recettes par ingrédients",
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios"
+    "android": "expo start --android"
   },
   "dependencies": {
     "expo": "~50.0.0",
