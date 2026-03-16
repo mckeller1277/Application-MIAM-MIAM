@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FRIDGE_KEY = '@miam_miam_fridge';
-const CART_KEY   = '@miam_miam_cart';
+const CART_KEY = '@miam_miam_cart';
 
 export async function saveFridge(ingredients) {
   await AsyncStorage.setItem(FRIDGE_KEY, JSON.stringify(ingredients));
