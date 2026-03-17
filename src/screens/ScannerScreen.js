@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera, useCameraDevice, useCodeScanner } from 'react-native-vision-camera';
 
 const C = {
   bg: '#0A1628', bg2: '#111E35',
@@ -19,45 +19,64 @@ const BARCODE_MAP = {
 };
 
 export default function ScannerScreen({ navigation }) {
-  const [hasPermission, setHasPermission] = useState(null);
+  const [permission, setPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
+  const device = useCameraDevice('back');
 
   useEffect(() => {
-    BarCodeScanner.requestPermissionsAsync().then(({ status }) => {
-      setHasPermission(status === 'granted');
+    Camera.requestCameraPermission().then(status => {
+      setPermission(status === 'granted');
     });
   }, []);
 
-  const handleBarcode = ({ data }) => {
-    if (scanned) return;
-    setScanned(true);
-    const ingredient = BARCODE_MAP[data] || 'Produit scanné';
-    Alert.alert(
-      '✅ Produit scanné !',
-      `Ajouter "${ingredient}" à votre frigo ?`,
-      [
-        { text: 'Annuler', style: 'cancel', onPress: () => setScanned(false) },
-        { text: 'Ajouter ✓', onPress: () => navigation.navigate('FridgeMain', { newIngredient: ingredient }) },
-      ]
-    );
-  };
+  const codeScanner = useCodeScanner({
+    codeTypes: ['ean-13', 'ean-8', 'upc-a', 'upc-e', 'qr'],
+    onCodeScanned: (codes) => {
+      if (scanned || codes.length === 0) return;
+      setScanned(true);
+      const data = codes[0].value;
+      const ingredient = BARCODE_MAP[data] || 'Produit scanné';
+      Alert.alert(
+        '✅ Produit scanné !',
+        `Ajouter "${ingredient}" à votre frigo ?`,
+        [
+          { text: 'Annuler', style: 'cancel', onPress: () => setScanned(false) },
+          { text: 'Ajouter ✓', onPress: () => navigation.navigate('FridgeMain', { newIngredient: ingredient }) },
+        ]
+      );
+    },
+  });
 
-  if (hasPermission === null) {
+  if (permission === null) {
     return (
       <SafeAreaView style={[s.container, s.center]} edges={['top']}>
-        <Text style={s.permText}>Demande de permission...</Text>
+        <Text style={s.permText}>Vérification des permissions...</Text>
       </SafeAreaView>
     );
   }
 
-  if (hasPermission === false) {
+  if (permission === false) {
     return (
       <SafeAreaView style={[s.container, s.center]} edges={['top']}>
         <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
         <Text style={s.permText}>L'accès à la caméra est nécessaire{'\n'}pour scanner les codes-barres.</Text>
-        <TouchableOpacity style={s.permBtn} onPress={() => BarCodeScanner.requestPermissionsAsync().then(({ status }) => setHasPermission(status === 'granted'))}>
+        <TouchableOpacity
+          style={s.permBtn}
+          onPress={() => Camera.requestCameraPermission().then(s => setPermission(s === 'granted'))}
+        >
           <Text style={s.permBtnText}>Autoriser la caméra</Text>
         </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          <Text style={{ color: C.sky, fontSize: 14, fontWeight: '700' }}>← Retour</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
+
+  if (!device) {
+    return (
+      <SafeAreaView style={[s.container, s.center]} edges={['top']}>
+        <Text style={s.permText}>Caméra non disponible sur cet appareil.</Text>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
           <Text style={{ color: C.sky, fontSize: 14, fontWeight: '700' }}>← Retour</Text>
         </TouchableOpacity>
@@ -73,13 +92,13 @@ export default function ScannerScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={s.headerTitle}>Scanner un produit</Text>
       </View>
-
       <View style={{ flex: 1 }}>
-        <BarCodeScanner
-          onBarCodeScanned={scanned ? undefined : handleBarcode}
+        <Camera
           style={StyleSheet.absoluteFillObject}
+          device={device}
+          isActive={true}
+          codeScanner={codeScanner}
         />
-
         <View style={s.overlay}>
           <Text style={s.scanLabel}>Scanner un code-barres</Text>
           <View style={s.frame}>
@@ -90,7 +109,6 @@ export default function ScannerScreen({ navigation }) {
           </View>
           <Text style={s.scanHint}>Placez le code-barres dans le cadre</Text>
         </View>
-
         {scanned && (
           <TouchableOpacity style={s.rescanBtn} onPress={() => setScanned(false)}>
             <Text style={s.rescanText}>🔄 Scanner à nouveau</Text>
