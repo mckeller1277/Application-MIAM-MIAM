@@ -14,8 +14,30 @@ const C = {
 const API_KEY = 'be597782e6c24111a7da7cc0618e5862';
 const BASE_URL = 'https://api.spoonacular.com/recipes';
 
+// Traduction français → anglais pour les ingrédients courants
+const FR_TO_EN = {
+  'oeufs': 'eggs', 'oeuf': 'egg', 'tomates': 'tomatoes', 'tomate': 'tomato',
+  'fromage': 'cheese', 'carottes': 'carrots', 'carotte': 'carrot',
+  'beurre': 'butter', 'lait': 'milk', 'pommes de terre': 'potatoes',
+  'pomme de terre': 'potato', 'poulet': 'chicken', 'boeuf': 'beef',
+  'porc': 'pork', 'pâtes': 'pasta', 'riz': 'rice', 'oignon': 'onion',
+  'oignons': 'onions', 'ail': 'garlic', 'sel': 'salt', 'poivre': 'pepper',
+  'huile': 'oil', 'farine': 'flour', 'sucre': 'sugar', 'citron': 'lemon',
+  'champignons': 'mushrooms', 'champignon': 'mushroom', 'épinards': 'spinach',
+  'courgette': 'zucchini', 'poivron': 'bell pepper', 'crème': 'cream',
+  'yaourt': 'yogurt', 'jambon': 'ham', 'lardons': 'bacon', 'thon': 'tuna',
+  'saumon': 'salmon', 'crevettes': 'shrimp', 'pomme': 'apple', 'banane': 'banana',
+};
+
+function translateIngredient(fr) {
+  const lower = fr.toLowerCase().trim();
+  return FR_TO_EN[lower] || lower;
+}
+
 export default function RecipesScreen({ route, navigation }) {
   const selectedIngredients = route.params?.selectedIngredients || [];
+  const fromFridge = selectedIngredients.length > 0;
+
   const [recipes, setRecipes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -26,42 +48,49 @@ export default function RecipesScreen({ route, navigation }) {
     setLoading(true);
     setError(null);
     try {
-      // Recherche par ingrédients — uniquement les recettes qui utilisent CES ingrédients
-      const ingredientList = selectedIngredients.join(',');
-      const res = await axios.get(`${BASE_URL}/findByIngredients`, {
-        params: {
-          apiKey: API_KEY,
-          ingredients: ingredientList,
-          number: 20,
-          ranking: 1, // maximise les ingrédients utilisés
-          ignorePantry: true,
-          language: 'fr',
-        }
-      });
+      let meals = [];
 
-      const meals = res.data || [];
+      if (fromFridge) {
+        // Traduire les ingrédients en anglais pour l'API
+        const translatedIngredients = selectedIngredients.map(translateIngredient).join(',');
 
-      // Récupérer les détails de chaque recette pour avoir le titre en français
-      const detailed = await Promise.all(
-        meals.slice(0, 10).map(meal =>
-          axios.get(`${BASE_URL}/${meal.id}/information`, {
-            params: { apiKey: API_KEY, language: 'fr' }
-          }).then(r => ({
-            id: String(r.data.id),
-            title: r.data.title,
-            thumbnail: r.data.image,
-            readyInMinutes: r.data.readyInMinutes,
-            servings: r.data.servings,
-            usedIngredients: meal.usedIngredientCount,
-            missedIngredients: meal.missedIngredientCount,
-            matchPct: Math.round((meal.usedIngredientCount / (meal.usedIngredientCount + meal.missedIngredientCount)) * 100),
-          })).catch(() => null)
-        )
-      );
+        const res = await axios.get(`${BASE_URL}/findByIngredients`, {
+          params: {
+            apiKey: API_KEY,
+            ingredients: translatedIngredients,
+            number: 15,
+            ranking: 2,
+            ignorePantry: false,
+          }
+        });
+        meals = (res.data || []).map(m => ({
+          id: String(m.id),
+          title: m.title,
+          thumbnail: m.image,
+          usedIngredients: m.usedIngredientCount,
+          missedIngredients: m.missedIngredientCount,
+          matchPct: Math.round((m.usedIngredientCount / (m.usedIngredientCount + m.missedIngredientCount || 1)) * 100),
+          readyInMinutes: null,
+        }));
+      } else {
+        // Onglet Recettes — recettes populaires
+        const res = await axios.get(`${BASE_URL}/random`, {
+          params: { apiKey: API_KEY, number: 20 }
+        });
+        meals = (res.data.recipes || []).map(m => ({
+          id: String(m.id),
+          title: m.title,
+          thumbnail: m.image,
+          usedIngredients: null,
+          missedIngredients: null,
+          matchPct: null,
+          readyInMinutes: m.readyInMinutes,
+        }));
+      }
 
-      setRecipes(detailed.filter(Boolean).sort((a, b) => b.matchPct - a.matchPct));
+      setRecipes(meals);
     } catch (e) {
-      setError('Impossible de charger les recettes. Vérifiez votre connexion.');
+      setError('Impossible de charger les recettes.\nVérifiez votre connexion internet.');
     }
     setLoading(false);
   };
@@ -69,29 +98,33 @@ export default function RecipesScreen({ route, navigation }) {
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
-        <Text style={s.title}>Recettes suggérées</Text>
-        <Text style={s.sub}>{recipes.length} recettes avec vos ingrédients</Text>
+        <Text style={s.title}>
+          {fromFridge ? '🧊 Recettes de votre frigo' : '🍽️ Recettes populaires'}
+        </Text>
+        <Text style={s.sub}>
+          {fromFridge
+            ? `Basé sur ${selectedIngredients.length} ingrédients`
+            : `${recipes.length} recettes disponibles`}
+        </Text>
       </View>
 
       {loading ? (
-        <View style={s.loading}>
+        <View style={s.center}>
           <ActivityIndicator size="large" color={C.red} />
-          <Text style={s.loadingText}>Recherche de recettes...</Text>
+          <Text style={s.loadingText}>Recherche en cours...</Text>
         </View>
       ) : error ? (
-        <View style={s.loading}>
+        <View style={s.center}>
           <Text style={{ fontSize: 40 }}>😕</Text>
-          <Text style={[s.loadingText, { textAlign: 'center', paddingHorizontal: 20 }]}>{error}</Text>
+          <Text style={s.errorText}>{error}</Text>
           <TouchableOpacity style={s.retryBtn} onPress={fetchRecipes}>
             <Text style={s.retryText}>Réessayer</Text>
           </TouchableOpacity>
         </View>
       ) : recipes.length === 0 ? (
-        <View style={s.loading}>
+        <View style={s.center}>
           <Text style={{ fontSize: 40 }}>🤷</Text>
-          <Text style={[s.loadingText, { textAlign: 'center', paddingHorizontal: 20 }]}>
-            Aucune recette trouvée avec ces ingrédients.{'\n'}Essayez d'en ajouter d'autres !
-          </Text>
+          <Text style={s.errorText}>Aucune recette trouvée.{'\n'}Essayez d'autres ingrédients !</Text>
         </View>
       ) : (
         <FlatList
@@ -111,14 +144,17 @@ export default function RecipesScreen({ route, navigation }) {
                 <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
                 <View style={s.tags}>
                   {item.readyInMinutes ? <View style={s.tag}><Text style={s.tagText}>⏱ {item.readyInMinutes} min</Text></View> : null}
-                  <View style={s.tag}><Text style={s.tagText}>✓ {item.usedIngredients} ingr.</Text></View>
+                  {item.usedIngredients !== null ? <View style={s.tag}><Text style={s.tagText}>✓ {item.usedIngredients} ingr.</Text></View> : null}
+                  {item.missedIngredients !== null ? <View style={[s.tag, { backgroundColor: 'rgba(232,38,58,0.15)' }]}><Text style={[s.tagText, { color: C.red }]}>+ {item.missedIngredients} manquants</Text></View> : null}
                 </View>
-                <View style={s.matchRow}>
-                  <View style={s.matchBar}>
-                    <View style={[s.matchFill, { width: `${item.matchPct}%` }]} />
+                {item.matchPct !== null && (
+                  <View style={s.matchRow}>
+                    <View style={s.matchBar}>
+                      <View style={[s.matchFill, { width: `${item.matchPct}%` }]} />
+                    </View>
+                    <Text style={s.matchPct}>{item.matchPct}%</Text>
                   </View>
-                  <Text style={s.matchPct}>{item.matchPct}%</Text>
-                </View>
+                )}
               </View>
             </TouchableOpacity>
           )}
@@ -131,11 +167,12 @@ export default function RecipesScreen({ route, navigation }) {
 const s = StyleSheet.create({
   container: { flex: 1, backgroundColor: C.bg },
   header: { backgroundColor: C.bg2, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  title: { color: C.white, fontSize: 18, fontWeight: '800' },
+  title: { color: C.white, fontSize: 16, fontWeight: '800' },
   sub: { color: C.muted, fontSize: 11, marginTop: 2 },
-  loading: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   loadingText: { color: C.muted, fontSize: 13 },
-  retryBtn: { backgroundColor: C.red, borderRadius: 22, paddingVertical: 10, paddingHorizontal: 24, marginTop: 8 },
+  errorText: { color: C.muted, fontSize: 13, textAlign: 'center', paddingHorizontal: 20, lineHeight: 20 },
+  retryBtn: { backgroundColor: C.red, borderRadius: 22, paddingVertical: 10, paddingHorizontal: 24 },
   retryText: { color: C.white, fontSize: 13, fontWeight: '700' },
   card: { flexDirection: 'row', backgroundColor: C.bg2, marginHorizontal: 14, marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
   cardImg: { width: 90, height: 90 },
