@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import axios from 'axios';
+import { searchRecipes, getPopularRecipes } from '../data/RecipesData';
 
 const C = {
   bg: '#0A1628', bg2: '#111E35', bg3: '#1A2B47',
@@ -11,143 +11,79 @@ const C = {
   border: 'rgba(255,255,255,0.08)',
 };
 
-const API_KEY = 'be597782e6c24111a7da7cc0618e5862';
-const BASE_URL = 'https://api.spoonacular.com/recipes';
-
-// Traduction français → anglais pour les ingrédients courants
-const FR_TO_EN = {
-  'oeufs': 'eggs', 'oeuf': 'egg', 'tomates': 'tomatoes', 'tomate': 'tomato',
-  'fromage': 'cheese', 'carottes': 'carrots', 'carotte': 'carrot',
-  'beurre': 'butter', 'lait': 'milk', 'pommes de terre': 'potatoes',
-  'pomme de terre': 'potato', 'poulet': 'chicken', 'boeuf': 'beef',
-  'porc': 'pork', 'pâtes': 'pasta', 'riz': 'rice', 'oignon': 'onion',
-  'oignons': 'onions', 'ail': 'garlic', 'sel': 'salt', 'poivre': 'pepper',
-  'huile': 'oil', 'farine': 'flour', 'sucre': 'sugar', 'citron': 'lemon',
-  'champignons': 'mushrooms', 'champignon': 'mushroom', 'épinards': 'spinach',
-  'courgette': 'zucchini', 'poivron': 'bell pepper', 'crème': 'cream',
-  'yaourt': 'yogurt', 'jambon': 'ham', 'lardons': 'bacon', 'thon': 'tuna',
-  'saumon': 'salmon', 'crevettes': 'shrimp', 'pomme': 'apple', 'banane': 'banana',
-};
-
-function translateIngredient(fr) {
-  const lower = fr.toLowerCase().trim();
-  return FR_TO_EN[lower] || lower;
-}
-
 export default function RecipesScreen({ route, navigation }) {
   const selectedIngredients = route.params?.selectedIngredients || [];
   const fromFridge = selectedIngredients.length > 0;
 
-  const [recipes, setRecipes] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const recipes = fromFridge
+    ? searchRecipes(selectedIngredients)
+    : getPopularRecipes();
 
-  useEffect(() => { fetchRecipes(); }, []);
+  const [activeFilter, setActiveFilter] = useState('Tous');
+  const FILTERS = ['Tous', 'Rapide', 'Facile', 'Desserts'];
 
-  const fetchRecipes = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      let meals = [];
-
-      if (fromFridge) {
-        // Traduire les ingrédients en anglais pour l'API
-        const translatedIngredients = selectedIngredients.map(translateIngredient).join(',');
-
-        const res = await axios.get(`${BASE_URL}/findByIngredients`, {
-          params: {
-            apiKey: API_KEY,
-            ingredients: translatedIngredients,
-            number: 15,
-            ranking: 2,
-            ignorePantry: false,
-          }
-        });
-        meals = (res.data || []).map(m => ({
-          id: String(m.id),
-          title: m.title,
-          thumbnail: m.image,
-          usedIngredients: m.usedIngredientCount,
-          missedIngredients: m.missedIngredientCount,
-          matchPct: Math.round((m.usedIngredientCount / (m.usedIngredientCount + m.missedIngredientCount || 1)) * 100),
-          readyInMinutes: null,
-        }));
-      } else {
-        // Onglet Recettes — recettes populaires
-        const res = await axios.get(`${BASE_URL}/random`, {
-          params: { apiKey: API_KEY, number: 20 }
-        });
-        meals = (res.data.recipes || []).map(m => ({
-          id: String(m.id),
-          title: m.title,
-          thumbnail: m.image,
-          usedIngredients: null,
-          missedIngredients: null,
-          matchPct: null,
-          readyInMinutes: m.readyInMinutes,
-        }));
-      }
-
-      setRecipes(meals);
-    } catch (e) {
-      setError('Impossible de charger les recettes.\nVérifiez votre connexion internet.');
-    }
-    setLoading(false);
-  };
+  const filtered = recipes.filter(r => {
+    if (activeFilter === 'Rapide') return r.time <= 20;
+    if (activeFilter === 'Facile') return r.difficulty === 'Facile';
+    if (activeFilter === 'Desserts') return r.category === 'Desserts';
+    return true;
+  });
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.title}>
-          {fromFridge ? '🧊 Recettes de votre frigo' : '🍽️ Recettes populaires'}
+          {fromFridge ? '🧊 Recettes de votre frigo' : '🍽️ Toutes les recettes'}
         </Text>
         <Text style={s.sub}>
           {fromFridge
-            ? `Basé sur ${selectedIngredients.length} ingrédients`
+            ? `${recipes.length} recettes trouvées`
             : `${recipes.length} recettes disponibles`}
         </Text>
       </View>
 
-      {loading ? (
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={C.red} />
-          <Text style={s.loadingText}>Recherche en cours...</Text>
-        </View>
-      ) : error ? (
-        <View style={s.center}>
-          <Text style={{ fontSize: 40 }}>😕</Text>
-          <Text style={s.errorText}>{error}</Text>
-          <TouchableOpacity style={s.retryBtn} onPress={fetchRecipes}>
-            <Text style={s.retryText}>Réessayer</Text>
+      <View style={s.filterRow}>
+        {FILTERS.map(f => (
+          <TouchableOpacity
+            key={f}
+            style={[s.fchip, activeFilter === f && s.fchipActive]}
+            onPress={() => setActiveFilter(f)}
+          >
+            <Text style={[s.fchipText, activeFilter === f && s.fchipTextActive]}>{f}</Text>
           </TouchableOpacity>
-        </View>
-      ) : recipes.length === 0 ? (
+        ))}
+      </View>
+
+      {filtered.length === 0 ? (
         <View style={s.center}>
           <Text style={{ fontSize: 40 }}>🤷</Text>
-          <Text style={s.errorText}>Aucune recette trouvée.{'\n'}Essayez d'autres ingrédients !</Text>
+          <Text style={s.emptyText}>
+            {fromFridge
+              ? 'Aucune recette avec ces ingrédients.\nEssayez d\'en ajouter d\'autres !'
+              : 'Aucune recette dans cette catégorie.'}
+          </Text>
         </View>
       ) : (
         <FlatList
-          data={recipes}
+          data={filtered}
           keyExtractor={item => item.id}
           contentContainerStyle={{ paddingBottom: 20 }}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={s.card}
-              onPress={() => navigation.navigate('RecipeDetail', { recipeId: item.id, title: item.title })}
+              onPress={() => navigation.navigate('RecipeDetail', { recipe: item })}
             >
-              {item.thumbnail
-                ? <Image source={{ uri: item.thumbnail }} style={s.cardImg} />
-                : <View style={[s.cardImg, s.cardImgFallback]}><Text style={{ fontSize: 30 }}>🍽️</Text></View>
-              }
+              <View style={s.cardEmoji}>
+                <Text style={{ fontSize: 36 }}>{item.emoji}</Text>
+              </View>
               <View style={s.cardBody}>
                 <Text style={s.cardTitle} numberOfLines={2}>{item.title}</Text>
                 <View style={s.tags}>
-                  {item.readyInMinutes ? <View style={s.tag}><Text style={s.tagText}>⏱ {item.readyInMinutes} min</Text></View> : null}
-                  {item.usedIngredients !== null ? <View style={s.tag}><Text style={s.tagText}>✓ {item.usedIngredients} ingr.</Text></View> : null}
-                  {item.missedIngredients !== null ? <View style={[s.tag, { backgroundColor: 'rgba(232,38,58,0.15)' }]}><Text style={[s.tagText, { color: C.red }]}>+ {item.missedIngredients} manquants</Text></View> : null}
+                  <View style={s.tag}><Text style={s.tagText}>⏱ {item.time} min</Text></View>
+                  <View style={s.tag}><Text style={s.tagText}>{item.difficulty}</Text></View>
+                  <View style={s.tag}><Text style={s.tagText}>{item.category}</Text></View>
                 </View>
-                {item.matchPct !== null && (
+                {fromFridge && item.matchPct !== undefined && (
                   <View style={s.matchRow}>
                     <View style={s.matchBar}>
                       <View style={[s.matchFill, { width: `${item.matchPct}%` }]} />
@@ -170,13 +106,14 @@ const s = StyleSheet.create({
   title: { color: C.white, fontSize: 16, fontWeight: '800' },
   sub: { color: C.muted, fontSize: 11, marginTop: 2 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  loadingText: { color: C.muted, fontSize: 13 },
-  errorText: { color: C.muted, fontSize: 13, textAlign: 'center', paddingHorizontal: 20, lineHeight: 20 },
-  retryBtn: { backgroundColor: C.red, borderRadius: 22, paddingVertical: 10, paddingHorizontal: 24 },
-  retryText: { color: C.white, fontSize: 13, fontWeight: '700' },
+  emptyText: { color: C.muted, fontSize: 13, textAlign: 'center', paddingHorizontal: 20, lineHeight: 20 },
+  filterRow: { flexDirection: 'row', padding: 10, gap: 6, flexWrap: 'wrap' },
+  fchip: { paddingHorizontal: 13, paddingVertical: 5, borderRadius: 16, backgroundColor: C.bg3, borderWidth: 1.5, borderColor: C.skyLight },
+  fchipActive: { backgroundColor: C.red, borderColor: C.redDark },
+  fchipText: { color: C.muted, fontSize: 11, fontWeight: '700' },
+  fchipTextActive: { color: C.white },
   card: { flexDirection: 'row', backgroundColor: C.bg2, marginHorizontal: 14, marginBottom: 10, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: C.border },
-  cardImg: { width: 90, height: 90 },
-  cardImgFallback: { backgroundColor: C.bg3, alignItems: 'center', justifyContent: 'center' },
+  cardEmoji: { width: 90, backgroundColor: C.bg3, alignItems: 'center', justifyContent: 'center' },
   cardBody: { flex: 1, padding: 11 },
   cardTitle: { color: C.text, fontSize: 13, fontWeight: '700', marginBottom: 5 },
   tags: { flexDirection: 'row', gap: 5, marginBottom: 6, flexWrap: 'wrap' },
