@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -12,37 +12,52 @@ const C = {
 const BARCODE_MAP = {
   '3017620422003': 'Nutella',
   '3228857000166': 'Lait',
-  '8076800105735': 'Pâtes Barilla',
+  '8076800105735': 'Pâtes',
   '7613035898523': 'Nesquik',
+  '3175680011534': 'Yaourt',
+  '3270160513100': 'Crème fraîche',
 };
 
 export default function ScannerScreen({ navigation }) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
 
-  useEffect(() => { if (!permission?.granted) requestPermission(); }, []);
-
   const handleBarcode = ({ data }) => {
     if (scanned) return;
     setScanned(true);
-    const ingredient = BARCODE_MAP[data] || `Produit (${data.slice(-6)})`;
-    Alert.alert('Produit scanné !', `Ajouter "${ingredient}" à votre frigo ?`, [
-      { text: 'Annuler', style: 'cancel', onPress: () => setScanned(false) },
-      { text: 'Ajouter', onPress: () => navigation.navigate('FridgeMain', { newIngredient: ingredient }) },
-    ]);
+    const ingredient = BARCODE_MAP[data] || `Produit scanné`;
+    Alert.alert(
+      '✅ Produit scanné !',
+      `Ajouter "${ingredient}" à votre frigo ?`,
+      [
+        { text: 'Annuler', style: 'cancel', onPress: () => setScanned(false) },
+        { text: 'Ajouter ✓', onPress: () => navigation.navigate('FridgeMain', { newIngredient: ingredient }) },
+      ]
+    );
   };
 
-  if (!permission?.granted) return (
-    <SafeAreaView style={[s.container, s.center]} edges={['top']}>
-      <Text style={s.txt}>Permission caméra requise</Text>
-      <TouchableOpacity style={s.btn} onPress={requestPermission}>
-        <Text style={s.btnTxt}>Autoriser la caméra</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
-        <Text style={{ color: C.sky, fontSize: 14, fontWeight: '700' }}>← Retour</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
-  );
+  if (!permission) {
+    return (
+      <SafeAreaView style={[s.container, s.center]} edges={['top']}>
+        <ActivityIndicator size="large" color={C.red} />
+      </SafeAreaView>
+    );
+  }
+
+  if (!permission.granted) {
+    return (
+      <SafeAreaView style={[s.container, s.center]} edges={['top']}>
+        <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
+        <Text style={s.permText}>L'accès à la caméra est nécessaire{'\n'}pour scanner les codes-barres.</Text>
+        <TouchableOpacity style={s.permBtn} onPress={requestPermission}>
+          <Text style={s.permBtnText}>Autoriser la caméra</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
+          <Text style={{ color: C.sky, fontSize: 14, fontWeight: '700' }}>← Retour</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={s.container} edges={['top']}>
@@ -52,23 +67,31 @@ export default function ScannerScreen({ navigation }) {
         </TouchableOpacity>
         <Text style={s.headerTitle}>Scanner un produit</Text>
       </View>
+
       <View style={{ flex: 1 }}>
         <CameraView
           style={StyleSheet.absoluteFillObject}
           facing="back"
           onBarcodeScanned={scanned ? undefined : handleBarcode}
-          barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'qr'] }}
+          barcodeScannerSettings={{
+            barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr'],
+          }}
         />
+
         <View style={s.overlay}>
+          <Text style={s.scanLabel}>Scanner un code-barres</Text>
           <View style={s.frame}>
-            <View style={[s.corner, s.tl]} /><View style={[s.corner, s.tr]} />
-            <View style={[s.corner, s.bl]} /><View style={[s.corner, s.br]} />
+            <View style={[s.corner, s.tl]} />
+            <View style={[s.corner, s.tr]} />
+            <View style={[s.corner, s.bl]} />
+            <View style={[s.corner, s.br]} />
           </View>
           <Text style={s.scanHint}>Placez le code-barres dans le cadre</Text>
         </View>
+
         {scanned && (
           <TouchableOpacity style={s.rescanBtn} onPress={() => setScanned(false)}>
-            <Text style={s.rescanText}>Scanner à nouveau</Text>
+            <Text style={s.rescanText}>🔄 Scanner à nouveau</Text>
           </TouchableOpacity>
         )}
       </View>
@@ -77,22 +100,23 @@ export default function ScannerScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  center: { alignItems: 'center', justifyContent: 'center' },
-  backBar: { backgroundColor: C.bg2, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 16 },
-  backText: { color: C.sky, fontSize: 14, fontWeight: '700' },
+  container:   { flex: 1, backgroundColor: C.bg },
+  center:      { alignItems: 'center', justifyContent: 'center' },
+  backBar:     { backgroundColor: C.bg2, paddingHorizontal: 16, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', gap: 16 },
+  backText:    { color: C.sky, fontSize: 14, fontWeight: '700' },
   headerTitle: { color: C.white, fontSize: 15, fontWeight: '700' },
-  txt: { color: C.muted, fontSize: 13, textAlign: 'center', marginBottom: 16 },
-  btn: { backgroundColor: C.red, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 },
-  btnTxt: { color: C.white, fontSize: 14, fontWeight: '700' },
-  overlay: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  frame: { width: 250, height: 250, position: 'relative' },
-  corner: { position: 'absolute', width: 40, height: 40, borderColor: C.red, borderWidth: 3 },
-  tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0 },
-  tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0 },
-  bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0 },
-  br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0 },
-  scanHint: { color: C.white, fontSize: 13, marginTop: 20, textAlign: 'center' },
-  rescanBtn: { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: C.red, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 },
-  rescanText: { color: C.white, fontSize: 14, fontWeight: '700' },
+  permText:    { color: C.muted, fontSize: 13, textAlign: 'center', lineHeight: 20, marginBottom: 20 },
+  permBtn:     { backgroundColor: C.red, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 },
+  permBtnText: { color: C.white, fontSize: 14, fontWeight: '700' },
+  overlay:     { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scanLabel:   { color: C.white, fontSize: 16, fontWeight: '700', marginBottom: 20, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 },
+  frame:       { width: 260, height: 260, position: 'relative' },
+  corner:      { position: 'absolute', width: 44, height: 44, borderColor: C.red, borderWidth: 4 },
+  tl:          { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
+  tr:          { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
+  bl:          { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
+  br:          { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
+  scanHint:    { color: C.white, fontSize: 13, marginTop: 20, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 },
+  rescanBtn:   { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: C.red, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 },
+  rescanText:  { color: C.white, fontSize: 14, fontWeight: '700' },
 });
