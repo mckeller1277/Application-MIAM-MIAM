@@ -21,13 +21,13 @@
     },
     "extra": {
       "eas": {
-        "projectId": "62d37fdc-e313-494f-aa56-bcbf1146d4ba"
+        "projectId": "VOTRE-PROJECT-ID-ICI"
       }
     },
     "owner": "mckeller1277",
     "plugins": [
       [
-        "expo-camera",
+        "expo-barcode-scanner",
         {
           "cameraPermission": "Autoriser Miam Miam à utiliser la caméra pour scanner les codes-barres."
         }
