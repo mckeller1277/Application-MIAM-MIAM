@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { BarCodeScanner } from 'expo-barcode-scanner';
 
 const C = {
-  bg: '#0A1628', bg2: '#111E35', bg3: '#1A2B47',
+  bg: '#0A1628', bg2: '#111E35',
   red: '#E8263A', sky: '#5294C4',
   text: '#E8F0FB', muted: '#7A99BB', white: '#FFFFFF',
 };
@@ -19,13 +19,19 @@ const BARCODE_MAP = {
 };
 
 export default function ScannerScreen({ navigation }) {
-  const [permission, requestPermission] = useCameraPermissions();
+  const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
+
+  useEffect(() => {
+    BarCodeScanner.requestPermissionsAsync().then(({ status }) => {
+      setHasPermission(status === 'granted');
+    });
+  }, []);
 
   const handleBarcode = ({ data }) => {
     if (scanned) return;
     setScanned(true);
-    const ingredient = BARCODE_MAP[data] || `Produit scanné`;
+    const ingredient = BARCODE_MAP[data] || 'Produit scanné';
     Alert.alert(
       '✅ Produit scanné !',
       `Ajouter "${ingredient}" à votre frigo ?`,
@@ -36,20 +42,20 @@ export default function ScannerScreen({ navigation }) {
     );
   };
 
-  if (!permission) {
+  if (hasPermission === null) {
     return (
       <SafeAreaView style={[s.container, s.center]} edges={['top']}>
-        <ActivityIndicator size="large" color={C.red} />
+        <Text style={s.permText}>Demande de permission...</Text>
       </SafeAreaView>
     );
   }
 
-  if (!permission.granted) {
+  if (hasPermission === false) {
     return (
       <SafeAreaView style={[s.container, s.center]} edges={['top']}>
         <Text style={{ fontSize: 48, marginBottom: 16 }}>📷</Text>
         <Text style={s.permText}>L'accès à la caméra est nécessaire{'\n'}pour scanner les codes-barres.</Text>
-        <TouchableOpacity style={s.permBtn} onPress={requestPermission}>
+        <TouchableOpacity style={s.permBtn} onPress={() => BarCodeScanner.requestPermissionsAsync().then(({ status }) => setHasPermission(status === 'granted'))}>
           <Text style={s.permBtnText}>Autoriser la caméra</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginTop: 16 }}>
@@ -69,13 +75,9 @@ export default function ScannerScreen({ navigation }) {
       </View>
 
       <View style={{ flex: 1 }}>
-        <CameraView
+        <BarCodeScanner
+          onBarCodeScanned={scanned ? undefined : handleBarcode}
           style={StyleSheet.absoluteFillObject}
-          facing="back"
-          onBarcodeScanned={scanned ? undefined : handleBarcode}
-          barcodeScannerSettings={{
-            barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'qr'],
-          }}
         />
 
         <View style={s.overlay}>
@@ -112,10 +114,10 @@ const s = StyleSheet.create({
   scanLabel:   { color: C.white, fontSize: 16, fontWeight: '700', marginBottom: 20, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 },
   frame:       { width: 260, height: 260, position: 'relative' },
   corner:      { position: 'absolute', width: 44, height: 44, borderColor: C.red, borderWidth: 4 },
-  tl:          { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
-  tr:          { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
-  bl:          { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
-  br:          { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
+  tl: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 8 },
+  tr: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 8 },
+  bl: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 8 },
+  br: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 8 },
   scanHint:    { color: C.white, fontSize: 13, marginTop: 20, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 4 },
   rescanBtn:   { position: 'absolute', bottom: 40, alignSelf: 'center', backgroundColor: C.red, borderRadius: 22, paddingVertical: 12, paddingHorizontal: 24 },
   rescanText:  { color: C.white, fontSize: 14, fontWeight: '700' },
