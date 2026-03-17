@@ -27,9 +27,9 @@
     "owner": "mckeller1277",
     "plugins": [
       [
-        "expo-barcode-scanner",
+        "react-native-vision-camera",
         {
-          "cameraPermission": "Autoriser Miam Miam à utiliser la caméra pour scanner les codes-barres."
+          "cameraPermissionText": "Miam Miam utilise la caméra pour scanner les codes-barres."
         }
       ]
     ]
