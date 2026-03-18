@@ -13,7 +13,7 @@ const C = {
 
 const DEFAULT_INGREDIENTS = ['Oeufs', 'Tomates', 'Fromage', 'Carottes', 'Beurre', 'Lait', 'Pommes de terre'];
 
-export default function FridgeScreen({ navigation }) {
+export default function FridgeScreen({ navigation, route }) {
   const [ingredients, setIngredients] = useState([]);
   const [selected, setSelected] = useState([]);
   const [input, setInput] = useState('');
@@ -22,16 +22,34 @@ export default function FridgeScreen({ navigation }) {
     loadFridge().then(data => {
       const list = data.length ? data : DEFAULT_INGREDIENTS;
       setIngredients(list);
-      setSelected(list); // tous sélectionnés par défaut
+      setSelected(list);
       if (!data.length) saveFridge(list);
     });
   }, []);
 
+  // Écouter les ingrédients ajoutés par le scanner
+  useEffect(() => {
+    const newIngredient = route.params?.newIngredient;
+    if (!newIngredient) return;
+    addIngredientFromScanner(newIngredient);
+    // Réinitialiser le paramètre
+    navigation.setParams({ newIngredient: undefined });
+  }, [route.params?.newIngredient]);
+
+  const addIngredientFromScanner = (val) => {
+    if (!val) return;
+    setIngredients(prev => {
+      if (prev.map(x => x.toLowerCase()).includes(val.toLowerCase())) return prev;
+      const newList = [...prev, val];
+      saveFridge(newList);
+      setSelected(sel => [...sel, val]);
+      return newList;
+    });
+  };
+
   const toggleSelect = (item) => {
     setSelected(prev =>
-      prev.includes(item)
-        ? prev.filter(x => x !== item)
-        : [...prev, item]
+      prev.includes(item) ? prev.filter(x => x !== item) : [...prev, item]
     );
   };
 
@@ -71,9 +89,13 @@ export default function FridgeScreen({ navigation }) {
     <SafeAreaView style={s.container} edges={['top']}>
       <View style={s.header}>
         <Text style={s.logo}>🍴 Miam Miam</Text>
-        <Text style={s.sub}>Touchez un ingrédient pour le désélectionner</Text>
+        <Text style={s.sub}>Touchez pour sélectionner · Appui long pour supprimer</Text>
       </View>
-      <Text style={s.sec}>Mon frigo ({selected.length}/{ingredients.length} sélectionnés)</Text>
+
+      <Text style={s.sec}>
+        Mon frigo ({selected.length}/{ingredients.length} sélectionnés)
+      </Text>
+
       <FlatList
         data={ingredients}
         keyExtractor={item => item}
@@ -94,16 +116,22 @@ export default function FridgeScreen({ navigation }) {
           );
         }}
       />
+
       <View style={s.addRow}>
         <TextInput
-          style={s.input} value={input} onChangeText={setInput}
-          placeholder="Ajouter un ingrédient..." placeholderTextColor={C.muted}
-          onSubmitEditing={addIngredient} returnKeyType="done"
+          style={s.input}
+          value={input}
+          onChangeText={setInput}
+          placeholder="Ajouter un ingrédient..."
+          placeholderTextColor={C.muted}
+          onSubmitEditing={addIngredient}
+          returnKeyType="done"
         />
         <TouchableOpacity style={s.btnPlus} onPress={addIngredient}>
           <Text style={s.btnPlusText}>+</Text>
         </TouchableOpacity>
       </View>
+
       <TouchableOpacity style={s.scanBox} onPress={() => navigation.navigate('Scanner')}>
         <View style={s.scanIcon}><Text style={{ fontSize: 20 }}>▣</Text></View>
         <View>
@@ -111,6 +139,7 @@ export default function FridgeScreen({ navigation }) {
           <Text style={s.scanSub}>Ajouter un produit instantanément</Text>
         </View>
       </TouchableOpacity>
+
       <TouchableOpacity style={s.cta} onPress={goToRecipes}>
         <Text style={s.ctaText}>🔍 Trouver des recettes ({selected.length} ingrédients)</Text>
       </TouchableOpacity>
@@ -119,24 +148,24 @@ export default function FridgeScreen({ navigation }) {
 }
 
 const s = StyleSheet.create({
-  container: { flex: 1, backgroundColor: C.bg },
-  header: { backgroundColor: C.bg2, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
-  logo: { color: C.white, fontSize: 20, fontWeight: '800' },
-  sub: { color: C.muted, fontSize: 11, marginTop: 2 },
-  sec: { color: C.skyMid, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', padding: 14, paddingBottom: 6 },
-  chipGrid: { paddingHorizontal: 12, paddingBottom: 8 },
-  chip: { margin: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 22, backgroundColor: C.red, borderWidth: 1.5, borderColor: C.redDark },
-  chipUnsel: { backgroundColor: C.bg3, borderColor: C.skyLight },
-  chipText: { color: C.white, fontSize: 12, fontWeight: '700' },
-  chipTextUnsel: { color: C.muted },
-  addRow: { flexDirection: 'row', padding: 14, gap: 8, alignItems: 'center' },
-  input: { flex: 1, backgroundColor: C.bg3, borderRadius: 22, borderWidth: 1.5, borderColor: C.skyLight, padding: 8, paddingHorizontal: 14, color: C.text, fontSize: 13 },
-  btnPlus: { width: 36, height: 36, borderRadius: 18, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
-  btnPlusText: { color: C.white, fontSize: 22, lineHeight: 26 },
-  scanBox: { flexDirection: 'row', alignItems: 'center', gap: 14, margin: 14, marginTop: 0, backgroundColor: C.bg3, borderRadius: 16, borderWidth: 1.5, borderColor: C.skyLight, borderStyle: 'dashed', padding: 14 },
-  scanIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.skyLight, alignItems: 'center', justifyContent: 'center' },
-  scanTitle: { color: C.text, fontSize: 13, fontWeight: '700' },
-  scanSub: { color: C.muted, fontSize: 11, marginTop: 2 },
-  cta: { margin: 14, marginTop: 4, backgroundColor: C.red, borderRadius: 22, padding: 14, alignItems: 'center' },
-  ctaText: { color: C.white, fontSize: 15, fontWeight: '700' },
+  container:    { flex: 1, backgroundColor: C.bg },
+  header:       { backgroundColor: C.bg2, padding: 16, borderBottomWidth: 1, borderBottomColor: C.border },
+  logo:         { color: C.white, fontSize: 20, fontWeight: '800' },
+  sub:          { color: C.muted, fontSize: 11, marginTop: 2 },
+  sec:          { color: C.skyMid, fontSize: 11, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', padding: 14, paddingBottom: 6 },
+  chipGrid:     { paddingHorizontal: 12, paddingBottom: 8 },
+  chip:         { margin: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 22, backgroundColor: C.red, borderWidth: 1.5, borderColor: C.redDark },
+  chipUnsel:    { backgroundColor: C.bg3, borderColor: C.skyLight },
+  chipText:     { color: C.white, fontSize: 12, fontWeight: '700' },
+  chipTextUnsel:{ color: C.muted },
+  addRow:       { flexDirection: 'row', padding: 14, gap: 8, alignItems: 'center' },
+  input:        { flex: 1, backgroundColor: C.bg3, borderRadius: 22, borderWidth: 1.5, borderColor: C.skyLight, padding: 8, paddingHorizontal: 14, color: C.text, fontSize: 13 },
+  btnPlus:      { width: 36, height: 36, borderRadius: 18, backgroundColor: C.red, alignItems: 'center', justifyContent: 'center' },
+  btnPlusText:  { color: C.white, fontSize: 22, lineHeight: 26 },
+  scanBox:      { flexDirection: 'row', alignItems: 'center', gap: 14, margin: 14, marginTop: 0, backgroundColor: C.bg3, borderRadius: 16, borderWidth: 1.5, borderColor: C.skyLight, borderStyle: 'dashed', padding: 14 },
+  scanIcon:     { width: 42, height: 42, borderRadius: 12, backgroundColor: C.skyLight, alignItems: 'center', justifyContent: 'center' },
+  scanTitle:    { color: C.text, fontSize: 13, fontWeight: '700' },
+  scanSub:      { color: C.muted, fontSize: 11, marginTop: 2 },
+  cta:          { margin: 14, marginTop: 4, backgroundColor: C.red, borderRadius: 22, padding: 14, alignItems: 'center' },
+  ctaText:      { color: C.white, fontSize: 15, fontWeight: '700' },
 });
